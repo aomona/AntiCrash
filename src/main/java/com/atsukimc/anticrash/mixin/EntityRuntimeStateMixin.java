@@ -1,0 +1,432 @@
+package com.atsukimc.anticrash.mixin;
+
+import com.atsukimc.anticrash.runtime.RuntimeExtensionNbt;
+//? if (>=1.18 && <=1.21.11) {
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.ExperienceOrbEntity;
+import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtHelper;
+import net.minecraft.util.math.BlockPos;
+//?} else if >=26.1 {
+//import net.minecraft.core.BlockPos;
+//import net.minecraft.nbt.CompoundTag;
+//import net.minecraft.world.entity.Entity;
+//import net.minecraft.world.entity.ExperienceOrb;
+//import net.minecraft.world.entity.LivingEntity;
+//import net.minecraft.world.entity.item.ItemEntity;
+//?} else if =1.16.1 {
+//import net.minecraft.entity.Entity;
+//import net.minecraft.entity.ExperienceOrbEntity;
+//import net.minecraft.entity.ItemEntity;
+//import net.minecraft.entity.LivingEntity;
+//import net.minecraft.nbt.CompoundTag;
+//import net.minecraft.nbt.NbtHelper;
+//import net.minecraft.util.math.BlockPos;
+//?}
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+/**
+ * Entity state Vanilla does not save although the next tick depends on it. Written only while
+ * entities that stay loaded are saved (see {@link RuntimeExtensionNbt#savingLoadedEntities()}) and only
+ * when it differs from what a freshly loaded entity would have, so ordinary entity data and the
+ * unchanged-entity-chunk detection stay as they were.
+ */
+@Mixin(Entity.class)
+public abstract class EntityRuntimeStateMixin {
+//? if (>=1.21 && <=1.21.11) {
+    @Shadow public net.minecraft.world.dimension.PortalManager portalManager;
+    @Shadow protected int ridingCooldown;
+    @Shadow protected boolean firstUpdate;
+    @Shadow protected boolean touchingWater;
+    @Shadow public int timeUntilRegen;
+    @Shadow public int age;
+    @Shadow public java.util.Optional<BlockPos> supportingBlockPos;
+    @Shadow private boolean forceUpdateSupportingBlockPos;
+    @Shadow public boolean groundCollision;
+//?} else if =1.16.1 || (>=1.18.1 && <=1.19.4) {
+//    @Shadow protected boolean inNetherPortal;
+//    @Shadow protected int netherPortalTime;
+//    @Shadow protected BlockPos lastNetherPortalPosition;
+//    @Shadow protected int ridingCooldown;
+//    @Shadow protected boolean firstUpdate;
+//    @Shadow protected boolean touchingWater;
+//    @Shadow public int timeUntilRegen;
+//    @Shadow public int age;
+//?} else if (>=1.20 && <=1.20.6) {
+//    @Shadow protected boolean inNetherPortal;
+//    @Shadow protected int netherPortalTime;
+//    @Shadow protected BlockPos lastNetherPortalPosition;
+//    @Shadow protected int ridingCooldown;
+//    @Shadow protected boolean firstUpdate;
+//    @Shadow protected boolean touchingWater;
+//    @Shadow public int timeUntilRegen;
+//    @Shadow public int age;
+//    @Shadow public java.util.Optional<BlockPos> supportingBlockPos;
+//    @Shadow private boolean forceUpdateSupportingBlockPos;
+//    @Shadow public boolean groundCollision;
+//?} else if >=26.1 {
+//    @Shadow public net.minecraft.world.entity.PortalProcessor portalProcess;
+//    @Shadow protected int boardingCooldown;
+//    @Shadow protected boolean firstTick;
+//    @Shadow protected boolean wasTouchingWater;
+//    @Shadow public int invulnerableTime;
+//    @Shadow public int tickCount;
+//    @Shadow public java.util.Optional<BlockPos> mainSupportingBlockPos;
+//    @Shadow private boolean onGroundNoBlocks;
+//    @Shadow public boolean verticalCollisionBelow;
+//?} else if =1.18 {
+//    @Shadow public boolean inanimate;
+//    @Shadow protected boolean inNetherPortal;
+//    @Shadow protected int netherPortalTime;
+//    @Shadow protected BlockPos lastNetherPortalPosition;
+//    @Shadow protected int ridingCooldown;
+//    @Shadow protected boolean firstUpdate;
+//    @Shadow protected boolean touchingWater;
+//    @Shadow public int timeUntilRegen;
+//    @Shadow public int age;
+//?}
+
+//? if (>=1.21.6 && <=1.21.11) {
+    @Inject(method = "writeData", at = @At("RETURN"))
+    private void anticrash$saveRuntimeState(net.minecraft.storage.WriteView nbt, CallbackInfo callbackInfo) {
+//?} else if (>=1.18 && <=1.21.5) {
+//    @Inject(method = "writeNbt", at = @At("RETURN"))
+//    private void anticrash$saveRuntimeState(NbtCompound nbt, CallbackInfoReturnable<NbtCompound> callbackInfo) {
+//?} else if >=26.1 {
+//    @Inject(method = "saveWithoutId", at = @At("RETURN"))
+//    private void anticrash$saveRuntimeState(net.minecraft.world.level.storage.ValueOutput nbt, CallbackInfo callbackInfo) {
+//?} else if =1.16.1 {
+//    @Inject(method = "writeNbt", at = @At("RETURN"))
+//    private void anticrash$saveRuntimeState(CompoundTag nbt, CallbackInfoReturnable<CompoundTag> callbackInfo) {
+//?}
+        if (!RuntimeExtensionNbt.savingLoadedEntities()) return;
+        Object self = this;
+        RuntimeExtensionNbt.write(nbt, extension -> {
+//? if (>=1.21.5 && <=1.21.10) {
+            extension.putBoolean("GroundCollision", groundCollision);
+            extension.putBoolean("ForceSupportUpdate", forceUpdateSupportingBlockPos);
+            if (supportingBlockPos.isPresent()) extension.put("SupportingBlock", net.minecraft.util.math.BlockPos.CODEC, supportingBlockPos.get());
+//?} else if (>=1.20 && <=1.21.4) {
+//            extension.putBoolean("GroundCollision", groundCollision);
+//            extension.putBoolean("ForceSupportUpdate", forceUpdateSupportingBlockPos);
+//            if (supportingBlockPos.isPresent()) extension.put("SupportingBlock", NbtHelper.fromBlockPos(supportingBlockPos.get()));
+//?} else if =1.16.1 || (>=1.18.1 && <=1.19.4) {
+//?} else if >=26.1 {
+//            extension.put("FluidTrackers",com.atsukimc.anticrash.runtime.FluidInteractionSnapshot.capture((Entity)self));
+//            extension.put("MotionFrame",com.atsukimc.anticrash.runtime.EntityMotionFrame.capture((Entity)(Object)this).write());
+//            if(self instanceof LivingEntity)
+//                extension.putLong("LastKineticAttackTime",((LivingEntityAccessorMixin)self).anticrash$lastKineticAttackTime());
+//            extension.putBoolean("GroundCollision", verticalCollisionBelow);
+//            extension.putBoolean("ForceSupportUpdate", onGroundNoBlocks);
+//            if (mainSupportingBlockPos.isPresent()) extension.store("SupportingBlock", net.minecraft.core.BlockPos.CODEC, mainSupportingBlockPos.get());
+//?} else if =1.18 {
+//            // 1.18 EntityView reads this for collision queries. Falling-block construction
+//            // paths do not all set the same default; preserve both true and false at the cut.
+//            extension.putBoolean("Inanimate", inanimate);
+//?} else if =1.21.11 {
+//            extension.put("MotionFrame",com.atsukimc.anticrash.runtime.EntityMotionFrame.capture((Entity)(Object)this).write());
+//            if(self instanceof LivingEntity)
+//                extension.putLong("LastKineticAttackTime",((LivingEntityAccessorMixin)self).anticrash$lastKineticAttackTime());
+//            extension.putBoolean("GroundCollision", groundCollision);
+//            extension.putBoolean("ForceSupportUpdate", forceUpdateSupportingBlockPos);
+//            if (supportingBlockPos.isPresent()) extension.put("SupportingBlock", net.minecraft.util.math.BlockPos.CODEC, supportingBlockPos.get());
+//?}
+            // Touched a nether portal this tick: the dimension change happens at the start of the
+            // next tick. Without this the entity has to touch the portal again, one tick late.
+//? if (>=1.21 && <=1.21.11) {
+            if (portalManager != null) extension.put("Portal",
+                    com.atsukimc.anticrash.runtime.PortalRuntime.write(portalManager));
+//?} else if (>=1.18 && <=1.20.6) {
+//            if (inNetherPortal || netherPortalTime > 0) {
+//                NbtCompound portal = new NbtCompound();
+//                portal.putBoolean("In", inNetherPortal);
+//                portal.putInt("Time", netherPortalTime);
+//                if (lastNetherPortalPosition != null) portal.put("Pos", NbtHelper.fromBlockPos(lastNetherPortalPosition));
+//                extension.put("Portal", portal);
+//            }
+//?} else if >=26.1 {
+//            if (portalProcess != null) extension.put("Portal",
+//                    com.atsukimc.anticrash.runtime.PortalRuntime.write(portalProcess));
+//?} else if =1.16.1 {
+//            if (inNetherPortal || netherPortalTime > 0) {
+//                CompoundTag portal = new CompoundTag();
+//                portal.putBoolean("In", inNetherPortal);
+//                portal.putInt("Time", netherPortalTime);
+//                if (lastNetherPortalPosition != null) portal.put("Pos", NbtHelper.fromBlockPos(lastNetherPortalPosition));
+//                extension.put("Portal", portal);
+//            }
+//?}
+            // 60 ticks after leaving a vehicle during which the entity cannot board another.
+//? if <=1.21.11 {
+            if (ridingCooldown > 0) extension.putInt("RidingCooldown", ridingCooldown);
+//?} else if >=26.1 {
+//            if (boardingCooldown > 0) extension.putInt("RidingCooldown", boardingCooldown);
+//?}
+            // A loaded entity is "new" for one tick: Entity#isInLava is false and it does not
+            // splash. An entity that had already ticked must not go through that tick again.
+//? if <=1.21.11 {
+            if (!firstUpdate) {
+//?} else if >=26.1 {
+//            if (!firstTick) {
+//?}
+                extension.putBoolean("Ticked", true);
+//? if <=1.21.11 {
+                if (touchingWater) extension.putBoolean("Water", true);
+//?} else if >=26.1 {
+//                if (wasTouchingWater) extension.putBoolean("Water", true);
+//?}
+            }
+            // Damage immunity window; LivingEntity compares new damage with lastDamageTaken in it.
+//? if <=1.21.11 {
+            if (timeUntilRegen > 0) {
+                extension.putInt("Regen", timeUntilRegen);
+//?} else if >=26.1 {
+//            if (invulnerableTime > 0) {
+//                extension.putInt("Regen", invulnerableTime);
+//?}
+                if (self instanceof LivingEntity living) {
+                    extension.putFloat("LastDamage", ((LivingEntityAccessorMixin) living).anticrash$getLastDamageTaken());
+                }
+            }
+            // Items merge when age % 40 (or % 2) is 0 and resting items re-check movement when
+            // (age + id) % 4 is 0; orbs look for a player when age % 20 is 1. Their data already
+            // changes every tick (Vanilla's own "Age"), so this adds no extra chunk writes. Other
+            // entities are left alone: saving age for all of them would rewrite every entity
+            // chunk at every checkpoint.
+//? if <=1.21.11 {
+            if (self instanceof ItemEntity || self instanceof ExperienceOrbEntity) extension.putInt("Age", age);
+//?} else if >=26.1 {
+//            if (self instanceof ItemEntity || self instanceof ExperienceOrb) extension.putInt("Age", tickCount);
+//?}
+            if (self instanceof com.atsukimc.anticrash.runtime.ItemPhaseHolder item) extension.putInt("IdPhase", item.anticrash$idPhase());
+//? if (>=1.21 && <=1.21.8) {
+            if (self instanceof net.minecraft.entity.TntEntity) extension.putBoolean("TeleportedTnt",
+                    ((TntRuntimeAccessorMixin) self).anticrash$teleported());
+            if (self instanceof net.minecraft.entity.FallingBlockEntity falling)
+                extension.putBoolean("ShouldDupe", falling.shouldDupe);
+//?} else if <=1.20.6 {
+//?} else if (>=1.21.9 && <=1.21.11) {
+//            if (self instanceof net.minecraft.entity.TntEntity) extension.putBoolean("TeleportedTnt",
+//                    ((TntRuntimeAccessorMixin) self).anticrash$teleported());
+//            if (self instanceof net.minecraft.entity.FallingBlockEntity falling)
+//                extension.putBoolean("ShouldDupe", falling.shouldDupe);
+//            if (self instanceof net.minecraft.entity.projectile.ProjectileEntity)
+//                extension.putBoolean("CheckedForLeftOwner", ((ProjectileRuntimeAccessorMixin)self).anticrash$checkedForLeftOwner());
+//?} else if >=26.1 {
+//            if (self instanceof net.minecraft.world.entity.item.PrimedTnt) extension.putBoolean("TeleportedTnt",
+//                    ((TntRuntimeAccessorMixin) self).anticrash$teleported());
+//            if (self instanceof net.minecraft.world.entity.item.FallingBlockEntity falling)
+//                extension.putBoolean("ShouldDupe", falling.forceTickAfterTeleportToDuplicate);
+//            if (self instanceof net.minecraft.world.entity.projectile.Projectile)
+//                extension.putBoolean("CheckedForLeftOwner", ((ProjectileRuntimeAccessorMixin)self).anticrash$checkedForLeftOwner());
+//?}
+        });
+    }
+
+//? if (>=1.21.6 && <=1.21.11) {
+    @Inject(method = "readData", at = @At("TAIL"))
+    private void anticrash$loadRuntimeState(net.minecraft.storage.ReadView nbt, CallbackInfo callbackInfo) {
+        NbtCompound extension = RuntimeExtensionNbt.read(nbt);
+//?} else if (>=1.18 && <=1.21.5) {
+//    @Inject(method = "readNbt", at = @At("TAIL"))
+//    private void anticrash$loadRuntimeState(NbtCompound nbt, CallbackInfo callbackInfo) {
+//        NbtCompound extension = RuntimeExtensionNbt.read(nbt);
+//?} else if >=26.1 {
+//    @Inject(method = "load", at = @At("TAIL"))
+//    private void anticrash$loadRuntimeState(net.minecraft.world.level.storage.ValueInput nbt, CallbackInfo callbackInfo) {
+//        CompoundTag extension = RuntimeExtensionNbt.read(nbt);
+//?} else if =1.16.1 {
+//    @Inject(method = "readNbt", at = @At("TAIL"))
+//    private void anticrash$loadRuntimeState(CompoundTag nbt, CallbackInfo callbackInfo) {
+//        CompoundTag extension = RuntimeExtensionNbt.read(nbt);
+//?}
+        if (extension == null) return;
+//? if =1.16.1 || >=1.18.1 {
+//?} else if =1.18 {
+//        if (extension.contains("Inanimate")) inanimate = extension.getBoolean("Inanimate");
+//?}
+        Object self = this;
+//? if (>=1.21.5 && <=1.21.8) {
+        if (self instanceof net.minecraft.entity.TntEntity && com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "TeleportedTnt", 1))
+            ((TntRuntimeAccessorMixin) self).anticrash$setTeleported(extension.getBoolean("TeleportedTnt").orElseThrow());
+        if (self instanceof net.minecraft.entity.FallingBlockEntity falling && com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "ShouldDupe", 1))
+            falling.shouldDupe = extension.getBoolean("ShouldDupe").orElseThrow();
+        if (com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "ForceSupportUpdate", 1)) {
+            forceUpdateSupportingBlockPos = extension.getBoolean("ForceSupportUpdate").orElseThrow();
+            groundCollision = extension.getBoolean("GroundCollision").orElseThrow();
+            supportingBlockPos = extension.get("SupportingBlock", net.minecraft.util.math.BlockPos.CODEC);
+//?} else if (>=1.18 && <=1.19.4) {
+//        if (extension.contains("Portal", 10)) {
+//            NbtCompound portal = extension.getCompound("Portal");
+//            inNetherPortal = portal.getBoolean("In");
+//            netherPortalTime = Math.max(0, portal.getInt("Time"));
+//            if (portal.contains("Pos", 10)) lastNetherPortalPosition = NbtHelper.toBlockPos(portal.getCompound("Pos"));
+//?} else if (>=1.20 && <=1.20.4) {
+//        if (extension.contains("ForceSupportUpdate", 1)) {
+//            forceUpdateSupportingBlockPos = extension.getBoolean("ForceSupportUpdate");
+//            groundCollision = extension.getBoolean("GroundCollision");
+//            supportingBlockPos = extension.contains("SupportingBlock", 10)
+//                    ? java.util.Optional.of(NbtHelper.toBlockPos(extension.getCompound("SupportingBlock")))
+//                    : java.util.Optional.empty();
+//?} else if (>=1.21 && <=1.21.4) {
+//        if (self instanceof net.minecraft.entity.TntEntity && extension.contains("TeleportedTnt", 1))
+//            ((TntRuntimeAccessorMixin) self).anticrash$setTeleported(extension.getBoolean("TeleportedTnt"));
+//        if (self instanceof net.minecraft.entity.FallingBlockEntity falling && extension.contains("ShouldDupe", 1))
+//            falling.shouldDupe = extension.getBoolean("ShouldDupe");
+//        if (extension.contains("ForceSupportUpdate", 1)) {
+//            forceUpdateSupportingBlockPos = extension.getBoolean("ForceSupportUpdate");
+//            groundCollision = extension.getBoolean("GroundCollision");
+//            supportingBlockPos = NbtHelper.toBlockPos(extension, "SupportingBlock");
+//?} else if >=26.1 {
+//        // Old normal-world entity NBT may predate 26.1. Cross-game checkpoint restoration is
+//        // rejected separately; do not prevent Vanilla's ordinary world upgrade on this basis.
+//        if(extension.contains("FluidTrackers"))
+//            com.atsukimc.anticrash.runtime.FluidInteractionSnapshot.restore((Entity)self,
+//                    com.atsukimc.anticrash.runtime.VersionNbt.list(extension,"FluidTrackers",10));
+//        if(self instanceof LivingEntity && extension.contains("LastKineticAttackTime"))
+//            ((LivingEntityAccessorMixin)self).anticrash$setLastKineticAttackTime(extension.getLong("LastKineticAttackTime").orElseThrow());
+//        if(extension.contains("MotionFrame"))
+//            com.atsukimc.anticrash.runtime.EntityMotionFrame.read(extension.getCompound("MotionFrame").orElseThrow()).apply((Entity)self);
+//        if (self instanceof net.minecraft.world.entity.projectile.Projectile)
+//            ((ProjectileRuntimeAccessorMixin)self).anticrash$setCheckedForLeftOwner(extension.getBoolean("CheckedForLeftOwner").orElseThrow());
+//        if (self instanceof net.minecraft.world.entity.item.PrimedTnt && com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "TeleportedTnt", 1))
+//            ((TntRuntimeAccessorMixin) self).anticrash$setTeleported(extension.getBoolean("TeleportedTnt").orElseThrow());
+//        if (self instanceof net.minecraft.world.entity.item.FallingBlockEntity falling && com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "ShouldDupe", 1))
+//            falling.forceTickAfterTeleportToDuplicate = extension.getBoolean("ShouldDupe").orElseThrow();
+//        if (com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "ForceSupportUpdate", 1)) {
+//            onGroundNoBlocks = extension.getBoolean("ForceSupportUpdate").orElseThrow();
+//            verticalCollisionBelow = extension.getBoolean("GroundCollision").orElseThrow();
+//            mainSupportingBlockPos = extension.read("SupportingBlock", net.minecraft.core.BlockPos.CODEC);
+//?} else if (>=1.20.5 && <=1.20.6) {
+//        if (extension.contains("ForceSupportUpdate", 1)) {
+//            forceUpdateSupportingBlockPos = extension.getBoolean("ForceSupportUpdate");
+//            groundCollision = extension.getBoolean("GroundCollision");
+//            supportingBlockPos = NbtHelper.toBlockPos(extension, "SupportingBlock");
+//?} else if (>=1.21.9 && <=1.21.10) {
+//        if (self instanceof net.minecraft.entity.projectile.ProjectileEntity)
+//            ((ProjectileRuntimeAccessorMixin)self).anticrash$setCheckedForLeftOwner(extension.getBoolean("CheckedForLeftOwner").orElseThrow());
+//        if (self instanceof net.minecraft.entity.TntEntity && com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "TeleportedTnt", 1))
+//            ((TntRuntimeAccessorMixin) self).anticrash$setTeleported(extension.getBoolean("TeleportedTnt").orElseThrow());
+//        if (self instanceof net.minecraft.entity.FallingBlockEntity falling && com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "ShouldDupe", 1))
+//            falling.shouldDupe = extension.getBoolean("ShouldDupe").orElseThrow();
+//        if (com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "ForceSupportUpdate", 1)) {
+//            forceUpdateSupportingBlockPos = extension.getBoolean("ForceSupportUpdate").orElseThrow();
+//            groundCollision = extension.getBoolean("GroundCollision").orElseThrow();
+//            supportingBlockPos = extension.get("SupportingBlock", net.minecraft.util.math.BlockPos.CODEC);
+//?} else if =1.16.1 {
+//        if (extension.contains("Portal", 10)) {
+//            CompoundTag portal = extension.getCompound("Portal");
+//            inNetherPortal = portal.getBoolean("In");
+//            netherPortalTime = Math.max(0, portal.getInt("Time"));
+//            if (portal.contains("Pos", 10)) lastNetherPortalPosition = NbtHelper.toBlockPos(portal.getCompound("Pos"));
+//?} else if =1.21.11 {
+//        if(self instanceof LivingEntity && extension.contains("LastKineticAttackTime"))
+//            ((LivingEntityAccessorMixin)self).anticrash$setLastKineticAttackTime(extension.getLong("LastKineticAttackTime").orElseThrow());
+//        if(extension.contains("MotionFrame"))
+//            com.atsukimc.anticrash.runtime.EntityMotionFrame.read(extension.getCompound("MotionFrame").orElseThrow()).apply((Entity)self);
+//        if (self instanceof net.minecraft.entity.projectile.ProjectileEntity)
+//            ((ProjectileRuntimeAccessorMixin)self).anticrash$setCheckedForLeftOwner(extension.getBoolean("CheckedForLeftOwner").orElseThrow());
+//        if (self instanceof net.minecraft.entity.TntEntity && com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "TeleportedTnt", 1))
+//            ((TntRuntimeAccessorMixin) self).anticrash$setTeleported(extension.getBoolean("TeleportedTnt").orElseThrow());
+//        if (self instanceof net.minecraft.entity.FallingBlockEntity falling && com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "ShouldDupe", 1))
+//            falling.shouldDupe = extension.getBoolean("ShouldDupe").orElseThrow();
+//        if (com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "ForceSupportUpdate", 1)) {
+//            forceUpdateSupportingBlockPos = extension.getBoolean("ForceSupportUpdate").orElseThrow();
+//            groundCollision = extension.getBoolean("GroundCollision").orElseThrow();
+//            supportingBlockPos = extension.get("SupportingBlock", net.minecraft.util.math.BlockPos.CODEC);
+//?}
+        }
+//? if (>=1.21.5 && <=1.21.11) {
+        if (com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "Portal", 10)) {
+            portalManager = com.atsukimc.anticrash.runtime.PortalRuntime.read(extension.getCompoundOrEmpty("Portal"));
+//?} else if <=1.19.4 {
+//        if (extension.contains("RidingCooldown", 99)) ridingCooldown = Math.max(0, extension.getInt("RidingCooldown"));
+//        if (extension.getBoolean("Ticked")) {
+//            firstUpdate = false;
+//            touchingWater = extension.getBoolean("Water");
+//?} else if (>=1.20 && <=1.20.4) {
+//        if (extension.contains("Portal", 10)) {
+//            NbtCompound portal = extension.getCompound("Portal");
+//            inNetherPortal = portal.getBoolean("In");
+//            netherPortalTime = Math.max(0, portal.getInt("Time"));
+//            if (portal.contains("Pos", 10)) lastNetherPortalPosition = NbtHelper.toBlockPos(portal.getCompound("Pos"));
+//?} else if (>=1.21 && <=1.21.4) {
+//        if (extension.contains("Portal", 10)) {
+//            portalManager = com.atsukimc.anticrash.runtime.PortalRuntime.read(extension.getCompound("Portal"));
+//?} else if >=26.1 {
+//        if (com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "Portal", 10)) {
+//            portalProcess = com.atsukimc.anticrash.runtime.PortalRuntime.read(extension.getCompoundOrEmpty("Portal"));
+//?} else if (>=1.20.5 && <=1.20.6) {
+//        if (extension.contains("Portal", 10)) {
+//            NbtCompound portal = extension.getCompound("Portal");
+//            inNetherPortal = portal.getBoolean("In");
+//            netherPortalTime = Math.max(0, portal.getInt("Time"));
+//            lastNetherPortalPosition = NbtHelper.toBlockPos(portal, "Pos").orElse(lastNetherPortalPosition);
+//?}
+        }
+//? if (>=1.21.5 && <=1.21.11) {
+        if (com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "RidingCooldown", 99)) ridingCooldown = Math.max(0, extension.getInt("RidingCooldown").orElseThrow());
+        if (com.atsukimc.anticrash.runtime.VersionNbt.sparseFlag(extension,"Ticked")) {
+            firstUpdate = false;
+            touchingWater = com.atsukimc.anticrash.runtime.VersionNbt.sparseFlag(extension,"Water");
+        }
+        if (com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "Regen", 99)) {
+            timeUntilRegen = Math.max(0, extension.getInt("Regen").orElseThrow());
+            if (self instanceof LivingEntity living && com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "LastDamage", 99)) {
+                ((LivingEntityAccessorMixin) living).anticrash$setLastDamageTaken(extension.getFloat("LastDamage").orElseThrow());
+//?} else if (>=1.20 && <=1.21.4) {
+//        if (extension.contains("RidingCooldown", 99)) ridingCooldown = Math.max(0, extension.getInt("RidingCooldown"));
+//        if (extension.getBoolean("Ticked")) {
+//            firstUpdate = false;
+//            touchingWater = extension.getBoolean("Water");
+//        }
+//        if (extension.contains("Regen", 99)) {
+//            timeUntilRegen = Math.max(0, extension.getInt("Regen"));
+//            if (self instanceof LivingEntity living && extension.contains("LastDamage", 99)) {
+//                ((LivingEntityAccessorMixin) living).anticrash$setLastDamageTaken(extension.getFloat("LastDamage"));
+//?} else if <=1.19.4 {
+//        if (extension.contains("Regen", 99)) {
+//            timeUntilRegen = Math.max(0, extension.getInt("Regen"));
+//            if (self instanceof LivingEntity living && extension.contains("LastDamage", 99)) {
+//                ((LivingEntityAccessorMixin) living).anticrash$setLastDamageTaken(extension.getFloat("LastDamage"));
+//?} else if >=26.1 {
+//        if (com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "RidingCooldown", 99)) boardingCooldown = Math.max(0, extension.getInt("RidingCooldown").orElseThrow());
+//        if (com.atsukimc.anticrash.runtime.VersionNbt.sparseFlag(extension,"Ticked")) {
+//            firstTick = false;
+//            wasTouchingWater = com.atsukimc.anticrash.runtime.VersionNbt.sparseFlag(extension,"Water");
+//        }
+//        if (com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "Regen", 99)) {
+//            invulnerableTime = Math.max(0, extension.getInt("Regen").orElseThrow());
+//            if (self instanceof LivingEntity living && com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "LastDamage", 99)) {
+//                ((LivingEntityAccessorMixin) living).anticrash$setLastDamageTaken(extension.getFloat("LastDamage").orElseThrow());
+//?}
+            }
+        }
+//? if (>=1.21.5 && <=1.21.11) {
+        if ((self instanceof ItemEntity || self instanceof ExperienceOrbEntity) && com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "Age", 99)) {
+            age = Math.max(0, extension.getInt("Age").orElseThrow());
+//?} else if <=1.21.4 {
+//        if ((self instanceof ItemEntity || self instanceof ExperienceOrbEntity) && extension.contains("Age", 99)) {
+//            age = Math.max(0, extension.getInt("Age"));
+//?} else if >=26.1 {
+//        if ((self instanceof ItemEntity || self instanceof ExperienceOrb) && com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "Age", 99)) {
+//            tickCount = Math.max(0, extension.getInt("Age").orElseThrow());
+//?}
+        }
+//? if >=1.21.5 {
+        if (self instanceof com.atsukimc.anticrash.runtime.ItemPhaseHolder item && com.atsukimc.anticrash.runtime.VersionNbt.contains(extension, "IdPhase", 99)) {
+            item.anticrash$setIdPhase(extension.getInt("IdPhase").orElseThrow());
+//?} else if <=1.21.4 {
+//        if (self instanceof com.atsukimc.anticrash.runtime.ItemPhaseHolder item && extension.contains("IdPhase", 99)) {
+//            item.anticrash$setIdPhase(extension.getInt("IdPhase"));
+//?}
+        }
+    }
+}

@@ -1,78 +1,73 @@
 #!/usr/bin/env python3
-"""Check source membership, duplicate classes/resources, and optional migration parity."""
+"""Compare Stonecutter output with the previous shared-source branch."""
 import argparse
-import hashlib
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import tarfile
 
 
-def collect(root, version, groups):
+def read_baseline(root, ref):
     files = {}
-    source_roots = [root / "versions" / version / "src"]
-    source_roots += [root / group / "src" for group, members in groups.items() if version in members]
-    for source_root in source_roots:
-        for path in source_root.rglob("*"):
-            if path.is_file():
-                name = "src/" + path.relative_to(source_root).as_posix()
-                if name in files:
-                    raise ValueError(f"{version}: duplicate source {name}")
-                files[name] = hashlib.sha256(path.read_bytes()).hexdigest()
-    for prefix, source_root in [
-        ("supervisor/src/", root / "supervisor" / "src"),
-        ("adapter-core/src/", root / "versions" / version / "adapter-core" / "src"),
-    ]:
-        for path in source_root.rglob("*"):
-            if path.is_file():
-                files[prefix + path.relative_to(source_root).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+    with subprocess.Popen(['git', 'archive', ref, '--', 'common', 'shared', 'versions',
+                           'gradle/source-groups.json'], cwd=root, stdout=subprocess.PIPE) as process:
+        with tarfile.open(fileobj=process.stdout, mode='r|') as archive:
+            for entry in archive:
+                if entry.isfile() and ('/src/' in entry.name or entry.name == 'gradle/source-groups.json'):
+                    files[entry.name] = archive.extractfile(entry).read()
+        if process.wait() != 0:
+            raise ValueError(f'Cannot read shared-source baseline {ref}')
     return files
 
 
-def baseline(root, ref, versions):
-    paths = [f"{v}/{part}" for v in versions for part in ["src", "supervisor/src"]]
-    paths.append("1.16.1/adapter-core/src")
-    result = {v: {} for v in versions}
-    with subprocess.Popen(["git", "archive", ref, "--", *paths], cwd=root, stdout=subprocess.PIPE) as process:
-        with tarfile.open(fileobj=process.stdout, mode="r|") as archive:
-            for member in archive:
-                if member.isfile():
-                    version, name = member.name.split("/", 1)
-                    result[version][name] = hashlib.sha256(archive.extractfile(member).read()).hexdigest()
-        if process.wait() != 0:
-            raise ValueError(f"Cannot read baseline {ref}")
+def collect_baseline(files, version):
+    groups = json.loads(files['gradle/source-groups.json'])
+    prefixes = [f'versions/{version}/src/']
+    prefixes += [group + '/src/' for group, members in groups.items() if version in members]
+    result = {}
+    for prefix in prefixes:
+        for path, content in files.items():
+            if path.startswith(prefix):
+                relative = path[len(prefix):]
+                if relative in result:
+                    raise ValueError(f'Duplicate baseline source {version}: {relative}')
+                result[relative] = content
     return result
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--baseline-ref", help="Compare every target with its original version/src tree at this Git ref")
-    parser.add_argument("--production-only", action="store_true", help="Exclude tests adapted to the new source layout from baseline comparison")
-    args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    versions = [v["minecraft"] for v in json.loads((root / "versions.json").read_text())["versions"]]
-    groups = json.loads((root / "gradle/source-groups.json").read_text())
-    for group, members in groups.items():
-        if not members or len(members) != len(set(members)) or not set(members) <= set(versions):
-            raise ValueError(f"Invalid members for {group}")
-        if not (root / group / "src").is_dir():
-            raise ValueError(f"Missing source group {group}")
-    if set(groups.get("common", [])) != set(versions):
-        raise ValueError("common must apply to every target")
-    current = {v: collect(root, v, groups) for v in versions}
-    if args.baseline_ref:
-        previous = baseline(root, args.baseline_ref, versions)
-        for v in versions:
-            differences = sorted(name for name in current[v].keys() | previous[v].keys()
-                                 if current[v].get(name) != previous[v].get(name)
-                                 and not (args.production_only and "/test/" in name))
-            if differences:
-                raise ValueError(f"{v}: source bytes or membership changed: {differences[:8]}")
-        scope = "production sources, probes and resources" if args.production_only else "sources, tests, probes and resources"
-        print(f"Byte-identical {scope} for all {len(versions)} targets, including supervisor and legacy adapter.")
-    else:
-        print(f"No duplicate sources or resources across {len(versions)} targets and {len(groups)} source groups.")
+    versions = [v['minecraft'] for v in json.loads((root / 'versions.json').read_text())['versions']]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--version', choices=versions, required=True)
+    parser.add_argument('--baseline-ref', default='99e41b0b3335a18a368c3495194dc92314c355f4')
+    parser.add_argument('--production-only', action='store_true', help='Allow test Java to follow the new source layout; all resources are still compared')
+    args = parser.parse_args()
+    files = collect_baseline(read_baseline(root, args.baseline_ref), args.version)
+    destination = root / 'build' / 'parity' / args.version / 'expected'
+    shutil.rmtree(destination, ignore_errors=True)
+    for relative, content in files.items():
+        path = destination / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    generated = root / 'build' / 'stonecutter' / args.version / 'generated' / 'stonecutter'
+    effective = destination.parent / 'actual'
+    shutil.rmtree(effective, ignore_errors=True)
+    shutil.copytree(generated, effective)
+    for path in (root / 'versions' / args.version / 'src').rglob('*'):
+        if path.is_file():
+            relative = path.relative_to(root / 'versions' / args.version / 'src')
+            target = effective / relative
+            if target.exists():
+                raise ValueError(f'Duplicate generated/local source: {relative}')
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, target)
+    command = ['java', str(root / 'scripts/SourceParity.java'), str(destination), str(effective)]
+    if args.production_only:
+        command.append('--production-only')
+    subprocess.run(command, cwd=root, check=True)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

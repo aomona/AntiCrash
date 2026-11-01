@@ -1,0 +1,11 @@
+import dev.kikugie.stitcher.transformer.impl.LineCommentStrategy
+
+plugins { id "dev.kikugie.stonecutter" }
+
+// Generate every target into build/ without rewriting the checked-in source.
+subprojects {
+    layout.buildDirectory = rootProject.layout.buildDirectory.dir("stonecutter/${project.name}")
+}
+stonecutter.active(null)
+
+stonecutter.handlers.named("java").configure { commenter.set(new LineCommentStrategy("//")) }

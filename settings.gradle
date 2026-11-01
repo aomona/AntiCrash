@@ -1,0 +1,19 @@
+pluginManagement {
+    repositories {
+        maven { url = "https://maven.kikugie.dev/releases" }
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+plugins { id "dev.kikugie.stonecutter" version "0.9.8" }
+
+rootProject.name = "AntiCrash-Stonecutter"
+def targets = new groovy.json.JsonSlurper().parse(file("versions.json")).versions*.minecraft
+stonecutter {
+    centralScript = "stonecutter-target.gradle"
+    kotlinController = false
+    create(rootProject) {
+        targets.each { version(it) }
+        vcsVersion = "1.21.8"
+    }
+}

@@ -143,29 +143,41 @@ Replace the version in the JAR name with the server's Minecraft version. The com
 
 The prebuilt Mod and Supervisor JARs are collected in `build/`. The project is licensed under the GNU Lesser General Public License v3.0 only (SPDX: `LGPL-3.0-only`).
 
-### Source layout and building
+### Stonecutter experiment: source layout and building
+
+This branch uses [Stonecutter 0.9.8](https://codeberg.org/stonecutter/stonecutter) to preprocess one canonical Java source tree. Version differences use `//? if` conditions; the checkpoint's Minecraft version uses a string swap. The previous `common/`, `shared/` and source-group membership table are replaced by:
 
 ```text
-common/src/              Sources, tests and resources shared by every target
-shared/<first>-<last>/src/  Sources shared by a compatible group of game versions
-versions/<minecraft>/    Version-specific sources, metadata and Gradle bootstrap
-supervisor/              One shared process supervisor and its tests
-gradle/                  Shared build rules and explicit source-group membership
-scripts/                 Source-layout checks
+src/main/java/           Canonical mod sources with version conditions
+src/test/java/           Shared tests and version-specific test conditions
+src/probe/java/          Runtime qualification probe sources
+src/main/resources/     Resources identical across every version
+versions/<minecraft>/   Native Gradle/Loom configuration and resource overrides
+supervisor/             Shared process supervisor and tests
+stonecutter.gradle      Read-only (detached) preprocessing controller
+stonecutter-target.gradle  Per-target preprocessing configuration
 ```
 
-`gradle/source-groups.json` lists the exact members of each shared group. Folder ranges are labels; membership is never inferred from version ordering. Each target compiles its version-specific sources together with its declared shared groups against its own Minecraft, mappings and Java release. There is no source generation, copying or implicit override: duplicate class/resource paths fail validation. Shared tests run separately against each target's game classes.
+Stonecutter requires Gradle 9. The root wrapper uses Gradle 9.4.0, while each native target keeps its existing Gradle/Loom versions. This deliberately separates source preprocessing from game compilation instead of upgrading all 30 Minecraft build toolchains at once.
 
-Use JDK 21 for Yarn targets (1.18–1.21.11), or JDK 25 for 26.x. The wrappers retain each target's required Gradle and Loom versions:
+Use JDK 21 for Yarn targets (1.18–1.21.11), or JDK 25 for 26.x. The native build automatically invokes the root wrapper to generate its sources:
 
 ```sh
 cd versions/1.21.8
 sh ./gradlew check remapJar sourcesJar :supervisor:build
 ```
 
-For 26.x, use `jar` instead of `remapJar`; its unobfuscated game does not need remapping. Outputs stay in that target's `build/` directory, including `build/supervisor/`. Yarn targets also retain `sh ./gradlew build` to collect checked Mod/Supervisor JARs into the repository's `build/`. The 26.x targets retain their separate collection policy. Minecraft 1.16.1 remains an incomplete, unpublishable port.
+For 26.x, replace `remapJar` with `jar`. Generated sources live in `build/stonecutter/<minecraft>/generated/stonecutter/`; compiled artifacts and reports stay under `versions/<minecraft>/build/`. Edit `src/` and version resource overrides, not generated files. Preprocessing does not switch or rewrite the checked-in source tree. The Supervisor retains per-target output isolation. Yarn's checked root JAR collection and the incomplete 1.16.1 port's publication guard remain in place.
 
-Run `python3 -m unittest discover -s scripts -v` and `python3 scripts/check_sources.py` from the repository root to check the layout. For the original source migration, `python3 scripts/check_sources.py --baseline-ref b5a2cabd7c0a57bf14050ff269ba0d260032bd8f --production-only` verifies every effective production source/resource byte, including probes, the legacy adapter and Supervisor, against the original layout. The source-scanning test uses the complete Gradle source list so it still audits shared mixins. GitHub Actions builds and tests all 30 buildable targets; this is offline verification, not live recovery qualification.
+To generate sources without compiling Minecraft, run `sh ./gradlew :1.21.8:prepareSources` from the repository root. To compare with the previous shared-source branch:
+
+```sh
+python3 -m unittest discover -s scripts -v
+java scripts/SourceParity.java --self-test
+python3 scripts/check_sources.py --version 1.21.8 --production-only
+```
+
+The comparison uses commit `99e41b0b3335a18a368c3495194dc92314c355f4` (override with `--baseline-ref`) and requires that commit in local Git history. Java is compared using compiler syntax trees because preprocessing adds inactive-code comments; resource bytes and membership must match exactly. The source-scanning audit parses active Java so inactive branches cannot affect its assertions. CI checks the 1.16.1 source transformation and builds/tests all 30 buildable targets, including per-target production-source/resource parity. This is offline verification, not live recovery or load qualification.
 
 ---
 
@@ -308,12 +320,12 @@ Supervisor JAR名のMinecraft版はサーバーに合わせます。`--`より�
 
 配布用Mod JARとSupervisor JARはルートの`build/`にあります。ライセンスはGNU Lesser General Public License v3.0 only（SPDX: `LGPL-3.0-only`）です。
 
-### ソース構成とビルド
+### Stonecutter実験版の構成とビルド
 
-全版共通の実装・テスト・リソースは`common/src/`、同じAPIで扱える版群の共通部分は`shared/<先頭版>-<最終版>/src/`、各版だけの差分と依存関係は`versions/<Minecraft版>/`にあります。Supervisorは`supervisor/`に集約し、ビルド規則は`gradle/`で共有しています。
+このブランチはStonecutter 0.9.8を使用し、共通の`src/`にJavaソースを集約しています。版による差は`//? if`条件で切り替え、チェックポイントに記録するMinecraft版には文字列の置換を使います。`common/`・`shared/`・ソース群の適用表を管理する方式との比較用です。
 
-共通ソースの適用先は`gradle/source-groups.json`に明記しています。ディレクトリ名の範囲から適用先を推測せず、ソースのコピー・生成・上書きもしません。同じクラスやリソースの二重定義は検証エラーになります。各版のMinecraft・マッピング・Java要件を使って共通ソースをコンパイルし、共通テストも各版で実行します。
+Stonecutterの前処理はルートのGradle 9.4.0で実行します。Minecraft本体のビルドには各版の既存Gradle・Loomを使い、前処理とコンパイルを分離しています。`cd versions/1.21.8`の後に`sh ./gradlew check remapJar sourcesJar :supervisor:build`を実行すると、必要なソース生成も自動実行されます。JDKはYarn版で21、26.xで25を使い、26.xでは`remapJar`を`jar`に置き換えてください。
 
-Yarn版（1.18〜1.21.11）はJDK 21、26.xはJDK 25で、例えば`cd versions/1.21.8`の後に`sh ./gradlew check remapJar sourcesJar :supervisor:build`を実行します。26.xは非難読化版なので`remapJar`を`jar`に置き換えてください。版ごとに必要なGradle・Loomを維持しています。出力先は各版の`build/`と`build/supervisor/`です。1.16.1の未完成・配布禁止の扱いは継続しています。
+編集対象は`src/`と`versions/<版>/src/`のリソースです。生成先の`build/stonecutter/<版>/generated/stonecutter/`は直接編集しません。通常の前処理ではGit管理下のソースを書き換えず、Supervisorの共通化と版別の出力先も維持しています。1.16.1の未完成・配布禁止の扱いは継続しています。
 
-ルートで`python3 -m unittest discover -s scripts -v`と`python3 scripts/check_sources.py`を実行すると構成を検証できます。移行元との全ソースの一致検証と詳細なビルド手順は上の英語セクションに記載しています。GitHub Actionsではビルド可能な30版を検証します。実サーバーでの復旧確認とは区別してください。
+移行前の共通化ブランチとの比較では、Javaのコメントや書式を除いた構文木と、リソースの内容・配置を照合します。検証コマンドと制約は上の英語セクションに記載しています。CIでは1.16.1のソース変換とビルド可能な30版を検証します。実サーバーでの復旧確認・負荷試験は未実施です。

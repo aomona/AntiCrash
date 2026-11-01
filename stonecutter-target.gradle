@@ -1,0 +1,9 @@
+apply plugin: "dev.kikugie.stonecutter"
+stonecutter.swaps.put("minecraft_version", '"' + project.name + '"')
+
+sourceSets { probe }
+
+tasks.register("prepareSources") {
+    group = "build"
+    dependsOn "stonecutterGenerate", "stonecutterGenerateTest", "stonecutterGenerateProbe"
+}

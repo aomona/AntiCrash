@@ -55,7 +55,7 @@ subprojects {
 }
 
 // Keep the existing offline game access fixture out of distributable JARs.
-if (sourceSets.test.java.files.any { it.name == "OfflineGameAccessTransformer.java" }) {
+if (project.findProperty("prepareOfflineGame") == true) {
     def mappedGame = providers.provider {
         def prefix = yarn ? "minecraft-merged-" : "minecraft-merged-deobf-"
         sourceSets.main.compileClasspath.files.find { it.name.startsWith(prefix) && it.name.endsWith(".jar") }

@@ -2,7 +2,7 @@ sourceSets {
     main.java.srcDir("adapter-core/src/main/java")
     legacyIntegration {
         java {
-            srcDirs = ["src/main/java", "adapter-core/src/main/java"]
+            srcDirs = ["../../build/stonecutter/1.16.1/generated/stonecutter/main/java", "adapter-core/src/main/java"]
             include "com/atsukimc/anticrash/legacy/**"
             include "com/atsukimc/anticrash/mixin/Legacy*"
         }

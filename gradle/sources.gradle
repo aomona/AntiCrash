@@ -1,31 +1,26 @@
+import org.gradle.language.jvm.tasks.ProcessResources
+
 def repository = rootProject.file("../..")
-def groups = new groovy.json.JsonSlurper().parse(new File(repository, "gradle/source-groups.json"))
-def sharedRoots = groups.findAll { path, versions -> rootProject.minecraft_version in versions }
-        .keySet().collect { new File(repository, "${it}/src") }
+def generated = new File(repository, "build/stonecutter/${project.minecraft_version}/generated/stonecutter")
 
-// Shared files are compiled against this target's game, mappings and Java release.
+// Stonecutter needs Gradle 9; targets retain their tested Gradle/Loom combinations.
+def prepare = tasks.register("prepareVersionSources", Exec) {
+    workingDir repository
+    commandLine "sh", new File(repository, "gradlew"), "--no-daemon", "--console=plain",
+            ":${project.minecraft_version}:prepareSources"
+    inputs.files(fileTree(new File(repository, "src")), fileTree("src"))
+    inputs.files(["settings.gradle", "stonecutter.gradle", "stonecutter-target.gradle",
+                  "gradle.properties", "versions.json", "gradle/wrapper/gradle-wrapper.properties"]
+            .collect { new File(repository, it) })
+    outputs.dir(generated)
+}
 sourceSets.configureEach { sourceSet ->
-    sharedRoots.each { root ->
-        sourceSet.java.srcDir(new File(root, "${sourceSet.name}/java"))
-        sourceSet.resources.srcDir(new File(root, "${sourceSet.name}/resources"))
-    }
+    sourceSet.java.setSrcDirs([new File(generated, "${sourceSet.name}/java")])
+    sourceSet.resources.setSrcDirs([new File(generated, "${sourceSet.name}/resources"),
+                                   file("src/${sourceSet.name}/resources")])
 }
-
-tasks.register("verifySourceLayout") {
-    doLast {
-        sourceSets.each { sourceSet ->
-            [sourceSet.java, sourceSet.resources].each { sources ->
-                def paths = [:]
-                sources.asFileTree.visit { entry ->
-                    if (!entry.directory) {
-                        def previous = paths.put(entry.relativePath.pathString, entry.file)
-                        if (previous != null) {
-                            throw new GradleException("Duplicate ${sourceSet.name} source: ${previous}, ${entry.file}")
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+tasks.withType(JavaCompile).configureEach { dependsOn prepare }
+tasks.withType(ProcessResources).configureEach { dependsOn prepare }
+tasks.withType(Jar).configureEach { dependsOn prepare }
+tasks.register("verifySourceLayout") { dependsOn prepare }
 tasks.named("check") { dependsOn tasks.named("verifySourceLayout") }
